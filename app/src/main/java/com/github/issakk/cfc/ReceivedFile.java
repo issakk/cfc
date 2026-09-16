@@ -3,9 +3,10 @@ package com.github.issakk.cfc;
 import android.content.Context;
 import android.net.Uri;
 import android.text.format.Formatter;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ArrayAdapter;
+import android.widget.BaseAdapter;
 import android.widget.TextView;
 
 import java.io.File;
@@ -85,21 +86,50 @@ class ReceivedFile {
     }
 }
 
-class ReceivedFileAdapter extends ArrayAdapter<ReceivedFile> {
+class ReceivedFileAdapter extends BaseAdapter {
+
+    private final Context context;
+    private final LayoutInflater inflater;
+    private final List<ReceivedFile> items;
 
     ReceivedFileAdapter(Context context, List<ReceivedFile> items) {
-        super(context, android.R.layout.simple_list_item_2, items);
+        this.context = context;
+        this.inflater = LayoutInflater.from(context);
+        this.items = items;
+    }
+
+    @Override
+    public int getCount() {
+        return items.size();
+    }
+
+    @Override
+    public ReceivedFile getItem(int position) {
+        return (position >= 0 && position < items.size()) ? items.get(position) : null;
+    }
+
+    @Override
+    public long getItemId(int position) {
+        return position;
+    }
+
+    @Override
+    public boolean isEnabled(int position) {
+        return true;
     }
 
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
-        View view = super.getView(position, convertView, parent);
-        TextView line1 = view.findViewById(android.R.id.text1);
-        TextView line2 = view.findViewById(android.R.id.text2);
+        View view = convertView;
+        if (view == null)
+            view = inflater.inflate(R.layout.inbox_row, parent, false);
+
+        TextView name = view.findViewById(R.id.row_name);
+        TextView detail = view.findViewById(R.id.row_detail);
         ReceivedFile item = getItem(position);
         if (item != null) {
-            line1.setText(item.name);
-            line2.setText(item.detailLine(getContext()));
+            name.setText(item.name);
+            detail.setText(item.detailLine(context));
         }
         return view;
     }

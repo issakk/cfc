@@ -55,6 +55,12 @@ anything touching JNI, threading or resources.
 - **Platform APIs without a version guard:** `MediaStore.Downloads`/`RELATIVE_PATH`/`IS_PENDING`
   (29), `VibrationEffect` (26), `VibratorManager` (31). Guard with `SDK_INT` and keep each
   guarded block in its own method where practical.
+- **`ArrayAdapter` with a row layout whose root is not a `TextView`.** Without a
+  `textViewResourceId` argument, `ArrayAdapter.getView()` casts the inflated root to `TextView`
+  and throws `IllegalStateException: ArrayAdapter requires the resource ID to be a TextView`
+  (`ClassCastException: TwoLineListItem -> TextView`). It fires while the `ListView` *measures*
+  (i.e. the moment a dialog with a wrap_content list is shown), not when a row is tapped, which
+  makes it easy to misdiagnose. Use a `BaseAdapter` with your own row layout instead.
 - **Enabling `minifyEnabled` for a release that people will install from CI.** The CI artifact is
   a debug build on purpose: debug-signed and installable.
 

@@ -191,7 +191,7 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
         requestLegacyStorageIfNeeded();
         updateModeButton();
         refreshInbox();
-        updateStatusText(0, 0);
+        updateStatusText(0, 0, 0);
         recoverLeftovers();
     }
 
@@ -279,10 +279,12 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
 
         double progress = 0;
         int transferStatus = 0;
+        double inFlight = 0;
         double[] stats = getStatusJNI();
-        if (stats != null && stats.length >= 2) {
+        if (stats != null && stats.length >= 3) {
             progress = stats[0];
             transferStatus = (int) stats[1];
+            inFlight = stats[2];
         }
 
         long now = System.currentTimeMillis();
@@ -291,6 +293,7 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
             mLastTransferStatus = transferStatus;
             final double progressNow = progress;
             final int statusNow = transferStatus;
+            final double inFlightNow = inFlight;
             final int detectedNow = detectedModeJNI();
             runOnUiThread(new Runnable() {
                 @Override
@@ -299,7 +302,7 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
                         mDetectedMode = detectedNow;
                         updateModeButton();
                     }
-                    updateStatusText(statusNow, progressNow);
+                    updateStatusText(statusNow, progressNow, inFlightNow);
                 }
             });
         }
@@ -712,7 +715,7 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
         mDetectedMode = 0;
         prefs().edit().putInt(PREF_MODE, mode).apply();
         updateModeButton();
-        updateStatusText(0, 0);
+        updateStatusText(0, 0, 0);
         toast(getString(R.string.toast_mode, modeName(mode)), true);
     }
 
@@ -720,14 +723,19 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
         mModeButton.setText(getString(R.string.btn_mode_fmt, modeName(modeVal)));
     }
 
-    private void updateStatusText(int transferStatus, double progress) {
+    private void updateStatusText(int transferStatus, double progress, double inFlight) {
         String line;
         // keep showing "done" for a moment after a file landed -- the decoder goes back
         // to idle within ~a second once the sender stops moving
         boolean recentlyDone = (System.currentTimeMillis() - mLastCompletionAt) < 3000;
-        if (transferStatus >= 2 || recentlyDone)
+        // "receiving" is decided by the transfer itself, not by transferStatus: the latter only
+        // reports whether recently sampled frames decoded anything, so a briefly unreadable
+        // sender would otherwise flip the text to "waiting for a barcode" with a file at 80%
+        boolean receiving = inFlight > 0 || progress > 0.005;
+
+        if (recentlyDone || transferStatus >= 2)
             line = getString(R.string.status_done, statusModeLabel());
-        else if (transferStatus == 1)
+        else if (receiving)
             line = getString(R.string.status_receiving, statusModeLabel(),
                     (int) Math.round(progress * 100));
         else

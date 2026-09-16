@@ -32,7 +32,7 @@
 ```java
 // 每帧调用；返回该帧新完成的文件名（可能为空数组，从不为 null；个别槽位可能为 null）
 private native String[] processImageJNI(long matAddr, String dataPath, int modeVal);
-// {maxProgress(0..1), transferStatus(0=idle, 1=partial, 2=full)}
+// {maxProgress(0..1), transferStatus(0=idle, 1=partial, 2=full), filesInFlight}
 private native double[] getStatusJNI();
 // 自动识别到的模式，0 表示尚未识别
 private native int detectedModeJNI();
@@ -43,6 +43,7 @@ private native void shutdownJNI();
 - `String[]` 由 `_completed` 集合去重后一次性返回，杜绝「同帧多文件只报一个」。
 - `getStatusJNI()`/`detectedModeJNI()` 每帧调用，成本是读几个计数器；`_proc` 为 null 时返回 `{0,0}` 与 0。
 - `_transferStatus` 的 32 帧采样逻辑保留在 C++（避免行为变化），只是改为对外暴露。
+- 状态条（第三轮修订）：状态词不再由 `_transferStatus` 单独决定。它只反映「最近 32 帧有没有解出东西」，发送端一时不可读就会回落到 0，于是出现「文件已经 80% 但显示等待条码」。现在只要有流在传（`filesInFlight > 0`）或进度非零就算「接收中」，`_transferStatus` 只用来提前进入/保持「完成」。
 - `shutdownJNI()`（只由 `onDestroy` 调用）清空 `_completed` 与计数器，因此同名文件在新会话里可以再次被上报。
 
 ### 2.2 公共存储发布（`FilePublisher`）

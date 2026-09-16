@@ -104,11 +104,10 @@ namespace {
 		int fillHeight = std::max(3, minsz >> 6);
 		int trackHeight = fillHeight + std::max(2, minsz >> 8);
 
-		// horizontal and along the bottom: the old vertical bars hugged the left edge and read
-		// as a glitch in portrait. 55% of the width keeps it clear of the button bar in the
-		// bottom right corner.
-		int marginX = minsz >> 5;
-		int barLength = (mat.cols * 55) / 100;
+		// horizontal, along the bottom and full width: the old vertical bars hugged the left
+		// edge and read as a glitch in portrait. The button bar is raised in activity_main.xml
+		// so it does not sit on top of the right end of this.
+		int barLength = mat.cols;
 		int barY = mat.rows - (minsz >> 4);
 		int step = trackHeight * 2; // a second file in flight stacks above the first
 
@@ -118,11 +117,11 @@ namespace {
 		for (double p : progress)
 		{
 			int fillLength = int(barLength * p);
-			cv::Point left(marginX, barY);
-			cv::Point right(marginX + barLength, barY);
+			cv::Point left(0, barY);
+			cv::Point right(barLength, barY);
 			cv::line(mat, left, right, outline, trackHeight);
 			if (fillLength > 0)
-				cv::line(mat, left, cv::Point(marginX + fillLength, barY), color, fillHeight);
+				cv::line(mat, left, cv::Point(fillLength, barY), color, fillHeight);
 
 			barY -= step;
 		}
@@ -251,15 +250,23 @@ Java_com_github_issakk_cfc_MainActivity_getStatusJNI(JNIEnv *env, jobject instan
 	}
 
 	double progress = 0;
+	double inFlight = 0;
 	if (proc)
+	{
 		for (double p : proc->get_progress())
 			progress = std::max(progress, p);
+		inFlight = proc->files_in_flight();
+	}
 
-	// {max progress 0..1, transfer status: 0 idle / 1 partial / 2 full}
-	jdouble stats[2] = { progress, (double)_transferStatus };
-	jdoubleArray result = env->NewDoubleArray(2);
+	// {max progress 0..1, transfer status: 0 idle / 1 partial / 2 full, files in flight}
+	//
+	// in-flight matters to the caller: _transferStatus only reports whether the last sampled
+	// frames decoded anything, so it drops to 0 whenever the sender is briefly unreadable --
+	// even with a file at 80%. The app decides "receiving" from the stream count instead.
+	jdouble stats[3] = { progress, (double)_transferStatus, inFlight };
+	jdoubleArray result = env->NewDoubleArray(3);
 	if (result)
-		env->SetDoubleArrayRegion(result, 0, 2, stats);
+		env->SetDoubleArrayRegion(result, 0, 3, stats);
 	return result;
 }
 

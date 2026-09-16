@@ -733,11 +733,14 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
         // sender would otherwise flip the text to "waiting for a barcode" with a file at 80%
         boolean receiving = inFlight > 0 || progress > 0.005;
 
-        if (recentlyDone || transferStatus >= 2)
-            line = getString(R.string.status_done, statusModeLabel());
-        else if (receiving)
+        // receiving wins over "complete": transferStatus stays 2 for a few sampled frames after
+        // the transfer ends, and a second file arriving in that window must not be shown as
+        // "complete" while its own bar is already filling
+        if (receiving)
             line = getString(R.string.status_receiving, statusModeLabel(),
                     (int) Math.round(progress * 100));
+        else if (recentlyDone || transferStatus >= 2)
+            line = getString(R.string.status_done, statusModeLabel());
         else
             line = getString(R.string.status_idle, statusModeLabel());
         mStatusText.setText(line);

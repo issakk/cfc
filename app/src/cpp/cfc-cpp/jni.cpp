@@ -260,6 +260,11 @@ Java_com_github_issakk_cfc_MainActivity_getStatusJNI(JNIEnv *env, jobject instan
 
 	// {max progress 0..1, transfer status: 0 idle / 1 partial / 2 full, files in flight}
 	//
+	// known ceiling: the sink keeps an unfinished stream for the whole session, so a transfer
+	// abandoned by the sender (file switched mid-stream) keeps contributing its frozen progress
+	// to this max. It only shows up as a percentage that stops making sense after switching
+	// files; the fix would be a per-stream idle timeout in the sink, which lives upstream.
+	//
 	// in-flight matters to the caller: _transferStatus only reports whether the last sampled
 	// frames decoded anything, so it drops to 0 whenever the sender is briefly unreadable --
 	// even with a file at 80%. The app decides "receiving" from the stream count instead.

@@ -26,6 +26,7 @@ Run these before every push (no SDK required):
 | `namespace == applicationId == java package` | package renames are the easiest way to break JNI |
 | `.github/workflows/build.yml` parses | a YAML typo means no build at all |
 | Braces/parens balance in touched Java files | cheap sanity net for hand edits |
+| Calls of our own methods on fields typed as a framework class are printed for review | the checker cannot resolve types; a base-typed field + a subclass-only method is `cannot find symbol` |
 
 The `trellis-check` sub-agent runs this list plus a read-through; keep it in the loop for
 anything touching JNI, threading or resources.
@@ -61,6 +62,11 @@ anything touching JNI, threading or resources.
   (`ClassCastException: TwoLineListItem -> TextView`). It fires while the `ListView` *measures*
   (i.e. the moment a dialog with a wrap_content list is shown), not when a row is tapped, which
   makes it easy to misdiagnose. Use a `BaseAdapter` with your own row layout instead.
+- **Calling one of our methods through a field typed as the framework class.** `MainActivity`
+  keeps the camera view in a field typed `OpencvCameraView` (our subclass), not
+  `CameraBridgeViewBase`, because it calls `setPreferHighResolution()` on it; through the base
+  type that is `cannot find symbol` and cost a red CI run. The local checker cannot resolve
+  framework types, so it only *prints* such calls for review -- read that list.
 - **Enabling `minifyEnabled` for a release that people will install from CI.** The CI artifact is
   a debug build on purpose: debug-signed and installable.
 

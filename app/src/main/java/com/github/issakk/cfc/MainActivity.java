@@ -84,7 +84,9 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
     private GestureDetectorCompat mDetector;
     private Toast introToast;
 
-    private CameraBridgeViewBase mOpenCvCameraView;
+    // our own subclass (the layout inflates com.github.issakk.cfc.OpencvCameraView), so
+    // subclass-only members like setPreferHighResolution are reachable through it
+    private OpencvCameraView mOpenCvCameraView;
     private TextView mStatusText;
     private TextView mCameraInfo;
     private Button mModeButton;

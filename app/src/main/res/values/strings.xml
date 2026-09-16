@@ -21,8 +21,7 @@
     <string name="status_done">%1$s | transfer complete</string>
 
     <!-- mode selection -->
-    <string name="mode_dialog_title">Decoder mode</string>
-    <string name="mode_dialog_note">Pick the mode the sender shows. Auto figures it out for you.</string>
+    <string name="mode_dialog_title">Decoder mode - pick what the sender shows</string>
     <string name="mode_entry_auto">Auto - detect the sender\'s mode (recommended)</string>
     <string name="mode_entry_b">B - square 112x112, highest capacity</string>
     <string name="mode_entry_bm">Bm - widescreen 112x78, best for phone screens</string>

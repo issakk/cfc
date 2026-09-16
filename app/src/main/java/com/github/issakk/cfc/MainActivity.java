@@ -29,8 +29,10 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -93,6 +95,7 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
     private final ArrayList<ReceivedFile> mInbox = new ArrayList<>();
     private ReceivedFileAdapter mInboxAdapter;
     private AlertDialog mInboxDialog;
+    private AlertDialog mModeDialog;
     private ReceivedFile mExportItem;
 
     private HandlerThread mPublishThread;
@@ -225,6 +228,8 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
     public void onDestroy() {
         if (mInboxDialog != null)
             mInboxDialog.dismiss();
+        if (mModeDialog != null)
+            mModeDialog.dismiss();
         if (mPublishHandler != null)
             mPublishHandler.removeCallbacksAndMessages(null);
         if (mPublishThread != null)
@@ -655,27 +660,49 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
     // ---------------------------------------------------------------- mode
 
     private void showModeDialog() {
-        final String[] entries = new String[MODES.length];
-        for (int i = 0; i < MODES.length; ++i)
-            entries[i] = modeEntry(MODES[i]);
+        if (mModeDialog != null && mModeDialog.isShowing()) {
+            mModeDialog.dismiss();
+            return;
+        }
 
-        int checked = 0;
-        for (int i = 0; i < MODES.length; ++i)
+        final String[] labels = new String[MODES.length];
+        int current = 0;
+        for (int i = 0; i < MODES.length; ++i) {
+            labels[i] = modeEntry(MODES[i]);
             if (MODES[i] == modeVal)
-                checked = i;
+                current = i;
+        }
+        final int checked = current;
 
-        new AlertDialog.Builder(this)
+        // a ListView handed to setView, like the inbox: the dialog's own choice list
+        // (setSingleChoiceItems) rendered empty inside this app's theme
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this,
+                android.R.layout.simple_list_item_1, labels) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                TextView row = (TextView) super.getView(position, convertView, parent);
+                row.setText(position == checked ? "> " + labels[position] : labels[position]);
+                return row;
+            }
+        };
+
+        ListView list = new ListView(this);
+        list.setAdapter(adapter);
+        list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                setMode(MODES[position]);
+                if (mModeDialog != null)
+                    mModeDialog.dismiss();
+            }
+        });
+
+        mModeDialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.mode_dialog_title)
-                .setSingleChoiceItems(entries, checked, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        setMode(MODES[which]);
-                        dialog.dismiss();
-                    }
-                })
-                .setMessage(R.string.mode_dialog_note)
+                .setView(list)
                 .setNegativeButton(android.R.string.cancel, null)
-                .show();
+                .create();
+        mModeDialog.show();
     }
 
     private void setMode(int mode) {

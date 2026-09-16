@@ -1,12 +1,20 @@
 # Backend Development Guidelines
 
-> Best practices for backend development in this project.
+> Conventions for the app layer of CameraFileCopy (Android, Java + JNI + OpenCV).
 
 ---
 
 ## Overview
 
-This directory contains guidelines for backend development. Fill in each file with your project's specific conventions.
+This is not a service: the "backend" here is the Android app module (`app/`) plus the thin
+JNI bridge into libcimbar. Everything below is what this repository actually does, including
+the parts enforced only by CI.
+
+**The single most important rule: this project is never built locally.** There is no Android
+SDK on the development machine and no matching JDK, so `./gradlew` is not run by hand.
+`.github/workflows/build.yml` is the compiler. Write code that compiles on the first push,
+and lean on the static checks in `trellis-check` / the task's `implement.md` instead of a
+local build.
 
 ---
 
@@ -14,25 +22,16 @@ This directory contains guidelines for backend development. Fill in each file wi
 
 | Guide | Description | Status |
 |-------|-------------|--------|
-| [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
-| [Database Guidelines](./database-guidelines.md) | ORM patterns, queries, migrations | To fill |
-| [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
-| [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
-| [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
+| [Directory Structure](./directory-structure.md) | Module organization and file layout | Filled |
+| [Database Guidelines](./database-guidelines.md) | (no database in this project) | N/A |
+| [Error Handling](./error-handling.md) | Failure paths: JNI, publishing, permissions | Filled |
+| [Quality Guidelines](./quality-guidelines.md) | Verification gates, forbidden patterns | Filled |
+| [Logging Guidelines](./logging-guidelines.md) | TAGs, log levels, what to log | Filled |
 
 ---
 
 ## How to Fill These Guidelines
 
-For each guideline file:
-
-1. Document your project's **actual conventions** (not ideals)
-2. Include **code examples** from your codebase
-3. List **forbidden patterns** and why
-4. Add **common mistakes** your team has made
-
-The goal is to help AI assistants and new team members understand how YOUR project works.
-
----
-
-**Language**: All documentation should be written in **English**.
+When you learn something the hard way (a version pin, a platform quirk, a failure mode that
+only shows up on a device), write it into the relevant file. Prefer the actual command or the
+actual error text over prose.

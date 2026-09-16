@@ -95,7 +95,12 @@ jobs:
 
       - name: show build summary
         if: always()
-        run: find app/build/outputs -name '*.apk' -exec ls -lh {} \;
+        run: |
+          find app/build/outputs -name '*.apk' -exec ls -lh {} \;
+          # no local device and no local SDK: this is how the package name, version
+          # and permissions that shipped actually get verified
+          AAPT2="${ANDROID_HOME}/build-tools/${BUILD_TOOLS_VERSION}/aapt2"
+          "$AAPT2" dump badging app/build/outputs/apk/debug/*.apk | head -20 || true
 
       - name: upload apk
         uses: actions/upload-artifact@v4

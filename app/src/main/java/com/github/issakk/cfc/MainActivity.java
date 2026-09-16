@@ -9,7 +9,6 @@ import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
 
 import android.Manifest;
 import android.app.AlertDialog;
-import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -116,6 +115,11 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
     public void onCreate(Bundle savedInstanceState) {
         Log.i(TAG, "called onCreate");
         super.onCreate(savedInstanceState);
+
+        // last-resort diagnostics: an uncaught exception gets written into filesDir, and the
+        // startup sweep below publishes it to Downloads/CameraFileCopy/ on the next launch.
+        // (there is no adb on the machine this is developed on, so logcat is out of reach)
+        CrashReporter.install(this);
 
         //! [ocv_loader_init]
         if (OpenCVLoader.initLocal()) {
@@ -429,19 +433,29 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
         list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                ReceivedFile item = mInbox.get(position);
-                if (item.isSaved())
-                    openItem(item);
-                else if (item.isFailed())
-                    retryPublish(item);
-                else
-                    toast(getString(R.string.toast_still_saving, item.name), true);
+                try {
+                    ReceivedFile item = mInbox.get(position);
+                    if (item.isSaved())
+                        openItem(item);
+                    else if (item.isFailed())
+                        retryPublish(item);
+                    else
+                        toast(getString(R.string.toast_still_saving, item.name), true);
+                } catch (Exception e) {
+                    Log.e(TAG, "inbox tap failed: " + e, e);
+                    toast(getString(R.string.toast_open_failed) + " [" + e.getClass().getSimpleName() + "]",
+                            true);
+                }
             }
         });
         list.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
             @Override
             public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-                showItemMenu(mInbox.get(position));
+                try {
+                    showItemMenu(mInbox.get(position));
+                } catch (Exception e) {
+                    Log.e(TAG, "inbox long-press failed: " + e, e);
+                }
                 return true;
             }
         });
@@ -474,19 +488,24 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
                 .setItems(labels.toArray(new String[0]), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        switch (actions.get(which)) {
-                            case ACTION_OPEN:
-                                openItem(item);
-                                break;
-                            case ACTION_RETRY:
-                                retryPublish(item);
-                                break;
-                            case ACTION_SHARE:
-                                shareItem(item);
-                                break;
-                            default:
-                                startExport(item);
-                                break;
+                        try {
+                            switch (actions.get(which)) {
+                                case ACTION_OPEN:
+                                    openItem(item);
+                                    break;
+                                case ACTION_RETRY:
+                                    retryPublish(item);
+                                    break;
+                                case ACTION_SHARE:
+                                    shareItem(item);
+                                    break;
+                                default:
+                                    startExport(item);
+                                    break;
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "inbox action failed: " + e, e);
+                            toast(getString(R.string.toast_open_failed), true);
                         }
                     }
                 })
@@ -499,15 +518,32 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
             toast(getString(R.string.toast_file_gone), true);
             return;
         }
-        Intent intent = new Intent(Intent.ACTION_VIEW);
-        intent.setDataAndType(uri, FilePublisher.mimeOf(item.name));
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        dismissInbox();
+
+        // ask the provider for the real type: guessing from the extension can disagree with it
+        String type = null;
         try {
-            startActivity(intent);
-        } catch (ActivityNotFoundException e) {
-            Log.w(TAG, "nothing can open " + item.name, e);
-            toast(getString(R.string.toast_open_failed), true);
+            type = getContentResolver().getType(uri);
+        } catch (Exception e) {
+            Log.w(TAG, "could not ask for the type of " + uri + ": " + e);
         }
+        if (type == null)
+            type = FilePublisher.mimeOf(item.name);
+
+        Intent typed = new Intent(Intent.ACTION_VIEW);
+        typed.setDataAndType(uri, type);
+        typed.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        if (launch(typed, "open " + item.name) == null)
+            return;
+
+        // some resolvers only look at the scheme; try once more without a type before giving up
+        Intent untyped = new Intent(Intent.ACTION_VIEW);
+        untyped.setData(uri);
+        untyped.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        if (launch(untyped, "open " + item.name + " (untyped)") == null)
+            return;
+
+        toast(getString(R.string.toast_open_failed), true);
     }
 
     private void shareItem(ReceivedFile item) {
@@ -516,29 +552,53 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
             toast(getString(R.string.toast_file_gone), true);
             return;
         }
+        dismissInbox();
+
         Intent intent = new Intent(Intent.ACTION_SEND);
         intent.setType(FilePublisher.mimeOf(item.name));
         intent.putExtra(Intent.EXTRA_STREAM, uri);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        try {
-            startActivity(Intent.createChooser(intent, getString(R.string.share_title)));
-        } catch (ActivityNotFoundException e) {
-            Log.w(TAG, "no share target", e);
+        if (launch(Intent.createChooser(intent, getString(R.string.share_title)), "share") != null)
             toast(getString(R.string.toast_open_failed), true);
+    }
+
+    /** returns null when the activity was launched, the exception otherwise */
+    private Exception launch(Intent intent, String what) {
+        try {
+            startActivity(intent);
+            return null;
+        } catch (Exception e) {
+            // ActivityNotFoundException is the common case, but a launch can also throw
+            // SecurityException or a vendor-specific RuntimeException -- none of which may
+            // take the process down just because someone tapped a row
+            Log.e(TAG, "could not " + what + ": " + e, e);
+            return e;
         }
+    }
+
+    private void dismissInbox() {
+        if (mInboxDialog != null && mInboxDialog.isShowing())
+            mInboxDialog.dismiss();
     }
 
     private Uri contentUri(ReceivedFile item) {
         if (item.uri() != null)
             return item.uri();
         File temp = item.tempFile;
-        if (temp != null && temp.isFile())
+        if (temp == null || !temp.isFile())
+            return null;
+        try {
             return FileProvider.getUriForFile(this, FilePublisher.authority(this), temp);
-        return null;
+        } catch (Exception e) {
+            // throws when the file is outside every configured root: report, do not crash
+            Log.e(TAG, "no content uri for " + temp + ": " + e, e);
+            return null;
+        }
     }
 
     /** "save a copy..." -- a user initiated SAF export, never on the receiving path */
     private void startExport(ReceivedFile item) {
+        dismissInbox();
         mExportItem = item;
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -546,9 +606,9 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
         intent.putExtra(Intent.EXTRA_TITLE, item.name);
         try {
             startActivityForResult(intent, EXPORT_FILE);
-        } catch (ActivityNotFoundException e) {
+        } catch (Exception e) {
             mExportItem = null;
-            Log.w(TAG, "no file manager for ACTION_CREATE_DOCUMENT", e);
+            Log.e(TAG, "no file manager for ACTION_CREATE_DOCUMENT: " + e, e);
             toast(getString(R.string.toast_open_failed), true);
         }
     }

@@ -166,7 +166,7 @@ namespace {
 
 extern "C" {
 jobjectArray JNICALL
-Java_org_cimbar_camerafilecopy_MainActivity_processImageJNI(JNIEnv *env, jobject instance, jlong matAddr, jstring dataPathObj, jint modeInt)
+Java_com_github_issakk_cfc_MainActivity_processImageJNI(JNIEnv *env, jobject instance, jlong matAddr, jstring dataPathObj, jint modeInt)
 {
 	++_calls;
 
@@ -239,7 +239,7 @@ Java_org_cimbar_camerafilecopy_MainActivity_processImageJNI(JNIEnv *env, jobject
 }
 
 jdoubleArray JNICALL
-Java_org_cimbar_camerafilecopy_MainActivity_getStatusJNI(JNIEnv *env, jobject instance) {
+Java_com_github_issakk_cfc_MainActivity_getStatusJNI(JNIEnv *env, jobject instance) {
 	std::shared_ptr<MultiThreadedDecoder> proc;
 	{
 		std::lock_guard<std::mutex> lock(_mutex);
@@ -260,13 +260,13 @@ Java_org_cimbar_camerafilecopy_MainActivity_getStatusJNI(JNIEnv *env, jobject in
 }
 
 jint JNICALL
-Java_org_cimbar_camerafilecopy_MainActivity_detectedModeJNI(JNIEnv *env, jobject instance) {
+Java_com_github_issakk_cfc_MainActivity_detectedModeJNI(JNIEnv *env, jobject instance) {
 	std::lock_guard<std::mutex> lock(_mutex);
 	return _proc ? (jint)_proc->detected_mode() : 0;
 }
 
 void JNICALL
-Java_org_cimbar_camerafilecopy_MainActivity_shutdownJNI(JNIEnv *env, jobject instance) {
+Java_com_github_issakk_cfc_MainActivity_shutdownJNI(JNIEnv *env, jobject instance) {
 	__android_log_print(ANDROID_LOG_INFO, TAG, "Shutdown cfc-cpp\n");
 
 	std::lock_guard<std::mutex> lock(_mutex);

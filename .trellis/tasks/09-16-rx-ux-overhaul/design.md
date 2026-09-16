@@ -170,3 +170,26 @@ activity_main.xml (ConstraintLayout)
 3. **`:opencv` 模块需要 AGP 默认 NDK**：见 §7 第 3 条，显式安装 `ndk;25.1.8937393`。
 
 顺带处理：`getStatusJNI` 只回传真正被使用的两个值；MediaStore 落盘名改为回查 `DISPLAY_NAME`（消除「显示名可能不等于真实文件名」）；PRD 的 AC4 措辞与 R4 对齐。
+
+## 12. 第二轮：竖屏 + 包名
+
+### 12.1 横屏改竖屏的连带影响
+
+`OpencvCameraView.bestCameraFrameSize()` 原来是「短边落在 960–1080 且宽高都不超过 Surface 宽高」的筛选。相机上报的预览尺寸恒定是横向的（1920×1080），而竖屏下 Surface 是 1080 宽 2280 高，于是 1920 > 1080 被判不合格，整个循环筛不出候选，回退到基类 `calculateCameraFrameSize()`，在 1080 宽的面板下大概率落到 1024×768 —— 送给解码器的像素直接砍半。
+
+改法：按 Surface 的**长边/短边**比较（`surfaceLongest/surfaceShortest`）。横屏时长边=宽、短边=高，行为完全不变；竖屏时长边=高，1920×1080 重新可选。这是纯筛选逻辑的修改，不动 OpenCV 的旋转/缩放代码。
+
+其余部分天然适合竖屏：`CameraBridgeViewBase.getFrameRotation()` 读 display rotation 自己算旋转角，`mFrameWidth/mFrameHeight` 按 `frameRotation % 180` 交换，`RotatedCameraFrame` 负责预览旋转 —— 无需改动。
+
+### 12.2 包名迁移清单
+
+| 位置 | 改动 |
+|---|---|
+| `app/build.gradle` | `namespace` + `applicationId` → `com.github.issakk.cfc` |
+| `AndroidManifest.xml` | 删掉 `package="..."`（AGP 8 已废弃，改用 `namespace`）；`.MainActivity` / `.WebViewActivity` 相对名不变 |
+| Java 源码 | 5 个文件移到 `app/src/main/java/com/github/issakk/cfc/`，`package` 声明同步（用 `git mv` 保留历史） |
+| `jni.cpp` | 4 个符号前缀 `Java_org_cimbar_camerafilecopy_MainActivity_` → `Java_com_github_issakk_cfc_MainActivity_`（包名点换下划线，本包无下划线所以不需要 `_1` 转义） |
+| `activity_main.xml` | 自定义 View 全限定名 `<org.cimbar.camerafilecopy.OpencvCameraView>` → `<com.github.issakk.cfc.OpencvCameraView>` |
+| FileProvider authority | 走 `${applicationId}.fileprovider` 与 `getPackageName()`，自动跟随，无需改 |
+
+风险点：JNI 符号漏改 → 运行时 `UnsatisfiedLinkError`（编译器不会报）。因此静态自检里新增「符号前缀由 `MainActivity.java` 的 `package` 声明推导」这一步，而不是硬编码旧包名。

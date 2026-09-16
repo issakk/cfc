@@ -37,6 +37,13 @@ cfc 是 Android 端 cimbar 光通信接收器（v0.6.8，仅 arm64-v8a，minSdk 
 - [ ] AC8 每个文件完成有震动 + 提示音；静音/勿扰下不崩溃。
 - [ ] AC9 收件箱条目可点开（打开文件），可分享。
 - [ ] AC10 push 后 GitHub Actions 构建成功并产出 APK artifact；构建不依赖本机路径。
+- [ ] AC11 竖屏启动，预览与解码正常；预览尺寸仍落在短边 960–1080 的分辨率档（竖屏下应选中 1920×1080 一类，而不是退化到 1024×768）。
+- [ ] AC12 产物 `applicationId` 为 `com.github.issakk.cfc`，可与旧包名并存安装；JNI 正常加载（无 `UnsatisfiedLinkError`）。
+
+## 追加需求（第二轮）
+
+- R10 **竖屏**：`MainActivity` 与 `WebViewActivity` 从横屏锁定改为竖屏锁定；切换方向后解码输入分辨率不得退档。
+- R11 **包名改为 `com.github.issakk.cfc`**：`namespace` / `applicationId` / Java 包与目录 / JNI 符号 / 布局里自定义 View 的全限定名同步更新；`AndroidManifest` 去掉已废弃的 `package` 属性（由 `namespace` 提供）。
 
 ## 非目标（本轮不做）
 

@@ -1,4 +1,4 @@
-package org.cimbar.camerafilecopy;
+package com.github.issakk.cfc;
 
 import org.opencv.android.CameraActivity;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;

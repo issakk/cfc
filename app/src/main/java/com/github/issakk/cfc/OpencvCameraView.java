@@ -1,4 +1,4 @@
-package org.cimbar.camerafilecopy;
+package com.github.issakk.cfc;
 
 import java.util.List;
 
@@ -74,8 +74,15 @@ public class OpencvCameraView extends CameraBridgeViewBase implements PreviewCal
         int calcWidth = 10000000;
         int calcHeight = 10000000;
 
-        int maxAllowedWidth = (mMaxWidth != MAX_UNSPECIFIED && mMaxWidth < surfaceWidth)? mMaxWidth : surfaceWidth;
-        int maxAllowedHeight = (mMaxHeight != MAX_UNSPECIFIED && mMaxHeight < surfaceHeight)? mMaxHeight : surfaceHeight;
+        // supported sizes are always landscape-oriented, whatever the activity orientation is,
+        // so compare against the longest/shortest edge of the surface rather than its width/height.
+        // against the raw width, portrait would reject 1920x1080 and fall back to 1024x768,
+        // giving the decoder half the pixels to work with.
+        int surfaceLongest = Math.max(surfaceWidth, surfaceHeight);
+        int surfaceShortest = Math.min(surfaceWidth, surfaceHeight);
+
+        int maxAllowedWidth = (mMaxWidth != MAX_UNSPECIFIED && mMaxWidth < surfaceLongest)? mMaxWidth : surfaceLongest;
+        int maxAllowedHeight = (mMaxHeight != MAX_UNSPECIFIED && mMaxHeight < surfaceShortest)? mMaxHeight : surfaceShortest;
 
         for (Object size : supportedSizes) {
             int width = accessor.getWidth(size);

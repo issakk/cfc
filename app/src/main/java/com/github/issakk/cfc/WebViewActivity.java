@@ -1,4 +1,4 @@
-package org.cimbar.camerafilecopy;
+package com.github.issakk.cfc;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;

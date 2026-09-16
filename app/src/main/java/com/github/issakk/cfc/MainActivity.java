@@ -85,6 +85,7 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
 
     private CameraBridgeViewBase mOpenCvCameraView;
     private TextView mStatusText;
+    private TextView mCameraInfo;
     private Button mModeButton;
     private Button mInboxButton;
 
@@ -150,6 +151,7 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
         mOpenCvCameraView.setCvCameraViewListener(this);
 
         mStatusText = findViewById(R.id.status_text);
+        mCameraInfo = findViewById(R.id.camera_info);
         mModeButton = findViewById(R.id.btn_mode);
         mInboxButton = findViewById(R.id.btn_inbox);
 
@@ -249,6 +251,17 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
 
     @Override
     public void onCameraViewStarted(int width, int height) {
+        // the frame size the decoder actually gets (after the camera rotation is applied), so
+        // there is no guessing about which preview size this device settled on
+        final int frameWidth = width;
+        final int frameHeight = height;
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (mCameraInfo != null)
+                    mCameraInfo.setText(getString(R.string.camera_info_fmt, frameWidth, frameHeight));
+            }
+        });
     }
 
     @Override

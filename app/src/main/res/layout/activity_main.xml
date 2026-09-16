@@ -35,6 +35,23 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:text="Auto -&gt; Bm | receiving 42%" />
 
+    <TextView
+        android:id="@+id/camera_info"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="4dp"
+        android:background="#99000000"
+        android:paddingLeft="8dp"
+        android:paddingTop="2dp"
+        android:paddingRight="8dp"
+        android:paddingBottom="2dp"
+        android:textColor="#FFB0B0B0"
+        android:textSize="11sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/status_text"
+        tools:text="preview 960x1280" />
+
     <LinearLayout
         android:id="@+id/button_bar"
         android:layout_width="wrap_content"

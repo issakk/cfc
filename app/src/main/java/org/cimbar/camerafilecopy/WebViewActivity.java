@@ -77,6 +77,14 @@ public class WebViewActivity extends Activity {
 
         webView.loadUrl("https://appassets.androidplatform.net/assets/index.html#ww=1");
 
+        // visible way back (the swipe-down gesture still works too)
+        findViewById(R.id.btn_back).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                finish();
+            }
+        });
+
         // Set up the swipe gestures
         mDetector = new GestureDetectorCompat(this, new FlingGestureDetector());
         webView.setOnTouchListener(new View.OnTouchListener() {

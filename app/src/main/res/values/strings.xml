@@ -1,7 +1,56 @@
 <resources>
     <string name="app_name">CameraFileCopy</string>
-    <string name="mode_4c">Mode 4C</string>
-    <string name="mode_b">Mode B</string>
-    <string name="mode_bm">Mode Bm</string>
-    <string name="mode_bu">Mode Bu</string>
+
+    <string name="opencv_failed">OpenCV initialization failed!</string>
+    <string name="intro_hint">Point the camera at the animated barcode. Tap Send to encode a file from this device.</string>
+
+    <!-- bottom bar -->
+    <string name="btn_send">Send</string>
+    <string name="btn_mode_fmt">Mode: %1$s</string>
+    <string name="btn_inbox_fmt">Inbox (%1$d)</string>
+
+    <!-- status line -->
+    <string name="mode_name_auto">Auto</string>
+    <string name="mode_name_b">B</string>
+    <string name="mode_name_bm">Bm</string>
+    <string name="mode_name_bu">Bu</string>
+    <string name="mode_name_4c">4C</string>
+    <string name="status_auto_locked">Auto -&gt; %1$s</string>
+    <string name="status_idle">%1$s | point at the animated barcode</string>
+    <string name="status_receiving">%1$s | receiving %2$d%%</string>
+    <string name="status_done">%1$s | transfer complete</string>
+
+    <!-- mode selection -->
+    <string name="mode_dialog_title">Decoder mode</string>
+    <string name="mode_dialog_note">Pick the mode the sender shows. Auto figures it out for you.</string>
+    <string name="mode_entry_auto">Auto - detect the sender\'s mode (recommended)</string>
+    <string name="mode_entry_b">B - square 112x112, highest capacity</string>
+    <string name="mode_entry_bm">Bm - widescreen 112x78, best for phone screens</string>
+    <string name="mode_entry_bu">Bu - small 80x69, easiest at a distance</string>
+    <string name="mode_entry_4c">4C - legacy 4-color, for old cimbar.org pages</string>
+    <string name="toast_mode">Decoder mode: %1$s</string>
+
+    <!-- inbox -->
+    <string name="inbox_title_fmt">Inbox (%1$d)</string>
+    <string name="inbox_empty">Nothing received yet. Point the camera at a cimbar barcode.</string>
+    <string name="inbox_detail_saved">%1$s | %2$s | saved to %3$s</string>
+    <string name="inbox_detail_pending">%1$s | %2$s | saving...</string>
+    <string name="inbox_detail_failed">%1$s | %2$s | not saved: %3$s</string>
+    <string name="action_open">Open</string>
+    <string name="action_retry">Retry save</string>
+    <string name="action_share">Share</string>
+    <string name="action_export">Save a copy...</string>
+    <string name="share_title">Share file</string>
+
+    <!-- toasts -->
+    <string name="toast_saved">Saved to %1$s</string>
+    <string name="toast_save_failed">Not saved (%1$s). The file is kept in the inbox.</string>
+    <string name="toast_leftovers">Saving %1$d file(s) left over from the last session</string>
+    <string name="toast_exported">Copied %1$s</string>
+    <string name="toast_export_failed">Could not copy the file</string>
+    <string name="toast_open_failed">No app can open this file</string>
+    <string name="toast_file_gone">The file is gone</string>
+
+    <!-- sender (webview) -->
+    <string name="webview_back">Back to camera</string>
 </resources>

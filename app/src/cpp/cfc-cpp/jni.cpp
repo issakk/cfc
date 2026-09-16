@@ -10,9 +10,12 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/core/ocl.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <algorithm>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <sstream>
+#include <vector>
 
 #define TAG "CameraFileCopyCPP"
 
@@ -21,8 +24,8 @@ using namespace cv;
 
 namespace {
 	std::shared_ptr<MultiThreadedDecoder> _proc;
-	std::mutex _mutex; // for _proc
-	std::set<std::string> _completed;
+	std::mutex _mutex; // for _proc and _completed
+	std::set<std::string> _completed; // file names we already reported to the app
 
 	unsigned _calls = 0;
 	int _transferStatus = 0;
@@ -162,7 +165,7 @@ namespace {
 }
 
 extern "C" {
-jstring JNICALL
+jobjectArray JNICALL
 Java_org_cimbar_camerafilecopy_MainActivity_processImageJNI(JNIEnv *env, jobject instance, jlong matAddr, jstring dataPathObj, jint modeInt)
 {
 	++_calls;
@@ -203,19 +206,63 @@ Java_org_cimbar_camerafilecopy_MainActivity_processImageJNI(JNIEnv *env, jobject
 	__android_log_print(ANDROID_LOG_INFO, TAG, "processImage computation time = %f seconds\n",
 						totalTime);
 
-	// return a decoded file to prompt the user to save it, if there is a new one
-	string result;
-	if (proc->detected_mode()) // repurpose str for special message passing
-		result = fmt::format("/{}", proc->detected_mode());
+	// report *every* file that finished since the last call -- not just the newest one
+	std::vector<std::string> newFiles;
+	{
+		std::lock_guard<std::mutex> lock(_mutex);
+		for (const string& s : proc->get_done())
+			if (_completed.insert(s).second)
+				newFiles.push_back(s);
+	}
 
-	std::vector<string> all_decodes = proc->get_done();
-	for (string& s : all_decodes)
-		if (_completed.find(s) == _completed.end())
-		{
-			_completed.insert(s);
-			result = s;
-		}
-	return env->NewStringUTF(result.c_str());
+	jclass stringClass = env->FindClass("java/lang/String");
+	if (!stringClass)
+		return nullptr;
+	jobjectArray result = env->NewObjectArray((jsize)newFiles.size(), stringClass, nullptr);
+	if (!result)
+		return nullptr;
+
+	for (jsize i = 0; i < (jsize)newFiles.size(); ++i)
+	{
+		jstring jstr = env->NewStringUTF(newFiles[i].c_str());
+		if (!jstr)
+			continue; // non-utf8 filename or oom: leave the slot empty, the app skips nulls
+		env->SetObjectArrayElement(result, i, jstr);
+		env->DeleteLocalRef(jstr);
+	}
+	return result;
+}
+
+jdoubleArray JNICALL
+Java_org_cimbar_camerafilecopy_MainActivity_getStatusJNI(JNIEnv *env, jobject instance) {
+	std::shared_ptr<MultiThreadedDecoder> proc;
+	{
+		std::lock_guard<std::mutex> lock(_mutex);
+		proc = _proc;
+	}
+
+	double progress = 0;
+	unsigned inFlight = 0;
+	unsigned decoded = 0;
+	if (proc)
+	{
+		for (double p : proc->get_progress())
+			progress = std::max(progress, p);
+		inFlight = proc->files_in_flight();
+		decoded = proc->files_decoded();
+	}
+
+	jdouble stats[4] = { progress, (double)_transferStatus, (double)inFlight, (double)decoded };
+	jdoubleArray result = env->NewDoubleArray(4);
+	if (result)
+		env->SetDoubleArrayRegion(result, 0, 4, stats);
+	return result;
+}
+
+jint JNICALL
+Java_org_cimbar_camerafilecopy_MainActivity_detectedModeJNI(JNIEnv *env, jobject instance) {
+	std::lock_guard<std::mutex> lock(_mutex);
+	return _proc ? (jint)_proc->detected_mode() : 0;
 }
 
 void JNICALL
@@ -226,6 +273,13 @@ Java_org_cimbar_camerafilecopy_MainActivity_shutdownJNI(JNIEnv *env, jobject ins
 	if (_proc)
 		_proc->stop();
 	_proc = nullptr;
+
+	// fresh decoder state for the next activity: the same file name can be received again
+	_completed.clear();
+	_calls = 0;
+	_transferStatus = 0;
+	_frameDecodeSnapshot = 0;
+	_frameSuccessSnapshot = 0;
 }
 
 }

@@ -9,8 +9,8 @@ android {
         applicationId "com.github.issakk.cfc"
         minSdkVersion 21
         targetSdkVersion 36
-        versionCode 31
-        versionName "0.6.12"
+        versionCode 32
+        versionName "0.6.13"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
         ndk {
             abiFilters "arm64-v8a"
@@ -26,7 +26,24 @@ android {
         }
         setProperty("archivesBaseName", "CameraFileCopy")
     }
+    signingConfigs {
+        debug {
+            // A throwaway key, committed on purpose. CI runners are ephemeral, so without this
+            // every build would carry a freshly generated debug key and installing a new APK
+            // over the previous one would fail with "signature does not match" until the app is
+            // uninstalled. Debug-grade only: store releases are signed elsewhere.
+            storeFile rootProject.file('keystore/debug.keystore')
+            storeType 'PKCS12'
+            storePassword 'android'
+            keyAlias 'cfcdebug'
+            keyPassword 'android'
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled true
             shrinkResources true

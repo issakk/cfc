@@ -35,6 +35,7 @@ app/
     │   └── res/                     # layouts, strings, xml/file_paths.xml
     └── ...
 .github/workflows/build.yml        # the only place this project is compiled
+keystore/debug.keystore            # throwaway debug key, committed so CI APKs update-install
 fastlane/metadata/android/         # store listing (upstream's)
 ```
 

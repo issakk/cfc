@@ -16,7 +16,11 @@ concurrency:
 env:
   OPENCV_VERSION: 4.12.0
   OPENCV_SDK: ${{ github.workspace }}/opencv-android-sdk
+  # the app module pins 29.x; the :opencv module has no ndkVersion, so AGP asks
+  # for its own default (25.1.8937393 on AGP 8.2.2) -- pre-install it instead of
+  # letting the build download ~600MB mid-run
   NDK_VERSION: 29.0.14206865
+  LEGACY_NDK_VERSION: 25.1.8937393
   BUILD_TOOLS_VERSION: 35.0.1
   COMPILE_SDK: 34
 
@@ -44,9 +48,11 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: >-
+            platform-tools
             platforms;android-${{ env.COMPILE_SDK }}
             build-tools;${{ env.BUILD_TOOLS_VERSION }}
             ndk;${{ env.NDK_VERSION }}
+            ndk;${{ env.LEGACY_NDK_VERSION }}
             cmake;3.22.1
           accept-android-sdk-licenses: true
 

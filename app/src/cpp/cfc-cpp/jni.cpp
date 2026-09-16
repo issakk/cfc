@@ -207,6 +207,11 @@ Java_org_cimbar_camerafilecopy_MainActivity_processImageJNI(JNIEnv *env, jobject
 						totalTime);
 
 	// report *every* file that finished since the last call -- not just the newest one
+	//
+	// known ceiling: _completed is keyed by file name, and the decoder sink keeps a
+	// finished file in its "done" list for the rest of the session. Re-sending the
+	// same file name inside one session is therefore reported only once; the second
+	// copy waits in filesDir until the next launch picks it up as a leftover.
 	std::vector<std::string> newFiles;
 	{
 		std::lock_guard<std::mutex> lock(_mutex);
@@ -242,20 +247,15 @@ Java_org_cimbar_camerafilecopy_MainActivity_getStatusJNI(JNIEnv *env, jobject in
 	}
 
 	double progress = 0;
-	unsigned inFlight = 0;
-	unsigned decoded = 0;
 	if (proc)
-	{
 		for (double p : proc->get_progress())
 			progress = std::max(progress, p);
-		inFlight = proc->files_in_flight();
-		decoded = proc->files_decoded();
-	}
 
-	jdouble stats[4] = { progress, (double)_transferStatus, (double)inFlight, (double)decoded };
-	jdoubleArray result = env->NewDoubleArray(4);
+	// {max progress 0..1, transfer status: 0 idle / 1 partial / 2 full}
+	jdouble stats[2] = { progress, (double)_transferStatus };
+	jdoubleArray result = env->NewDoubleArray(2);
 	if (result)
-		env->SetDoubleArrayRegion(result, 0, 4, stats);
+		env->SetDoubleArrayRegion(result, 0, 2, stats);
 	return result;
 }
 

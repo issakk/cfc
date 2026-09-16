@@ -50,6 +50,7 @@
     <string name="toast_export_failed">Could not copy the file</string>
     <string name="toast_open_failed">No app can open this file</string>
     <string name="toast_file_gone">The file is gone</string>
+    <string name="toast_still_saving">Still saving %1$s</string>
 
     <!-- sender (webview) -->
     <string name="webview_back">Back to camera</string>

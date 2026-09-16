@@ -44,6 +44,11 @@ class ReceivedFile {
         return state == State.SAVED;
     }
 
+    /** true only when a publish actually failed -- a pending one must not be retried */
+    boolean isFailed() {
+        return state == State.FAILED;
+    }
+
     Uri uri() {
         return uri;
     }

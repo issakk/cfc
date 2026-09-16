@@ -5,6 +5,7 @@ import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
@@ -113,7 +114,22 @@ final class FilePublisher {
         }
 
         deleteSource(src);
-        return Result.saved(uri, displayLocation(name));
+        return Result.saved(uri, displayLocation(queryDisplayName(resolver, uri, name)));
+    }
+
+    /** MediaStore renames on collision ("name (1).ext"), so report what actually landed */
+    private static String queryDisplayName(ContentResolver resolver, Uri uri, String fallback) {
+        try (Cursor cursor = resolver.query(uri, new String[] { MediaStore.MediaColumns.DISPLAY_NAME },
+                null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                String name = cursor.getString(0);
+                if (name != null && !name.isEmpty())
+                    return name;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "could not read back the display name: " + e);
+        }
+        return fallback;
     }
 
     private static Result publishToLegacyDownloads(Context ctx, File src, String name) {
@@ -136,10 +152,20 @@ final class FilePublisher {
             return Result.failed(String.valueOf(e.getMessage() != null ? e.getMessage() : e));
         }
 
-        MediaScannerConnection.scanFile(ctx, new String[]{dest.getAbsolutePath()}, null, null);
-        deleteSource(src);
+        Uri uri;
+        try {
+            uri = FileProvider.getUriForFile(ctx, authority(ctx), dest);
+        } catch (Exception e) {
+            // no shareable uri for it -- drop the half-usable copy, keep the source so the
+            // inbox can retry (otherwise every retry adds another stray copy)
+            Log.e(TAG, "no content uri for " + dest, e);
+            if (dest.isFile() && !dest.delete())
+                Log.w(TAG, "could not clean up " + dest);
+            return Result.failed(String.valueOf(e.getMessage() != null ? e.getMessage() : e));
+        }
 
-        Uri uri = FileProvider.getUriForFile(ctx, authority(ctx), dest);
+        deleteSource(src);
+        MediaScannerConnection.scanFile(ctx, new String[]{dest.getAbsolutePath()}, null, null);
         return Result.saved(uri, displayLocation(dest.getName()));
     }
 

@@ -360,12 +360,19 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
         mPublishHandler.post(new Runnable() {
             @Override
             public void run() {
-                final FilePublisher.Result result =
-                        FilePublisher.publish(MainActivity.this, item.tempFile, item.name);
+                FilePublisher.Result result;
+                try {
+                    result = FilePublisher.publish(MainActivity.this, item.tempFile, item.name);
+                } catch (Exception e) {
+                    // an uncaught throw on this thread would take the whole process down
+                    Log.e(TAG, "publish threw for " + item.name, e);
+                    result = FilePublisher.Result.failed(String.valueOf(e));
+                }
+                final FilePublisher.Result publishResult = result;
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        applyPublishResult(item, result);
+                        applyPublishResult(item, publishResult);
                     }
                 });
             }
@@ -386,6 +393,8 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
     }
 
     private void retryPublish(ReceivedFile item) {
+        if (!item.isFailed())
+            return; // already queued: a second publish would race the first one
         item.markPending();
         refreshInbox();
         publishLater(item);
@@ -423,8 +432,10 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
                 ReceivedFile item = mInbox.get(position);
                 if (item.isSaved())
                     openItem(item);
-                else
+                else if (item.isFailed())
                     retryPublish(item);
+                else
+                    toast(getString(R.string.toast_still_saving, item.name), true);
             }
         });
         list.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
@@ -449,7 +460,7 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
         if (item.isSaved()) {
             labels.add(getString(R.string.action_open));
             actions.add(ACTION_OPEN);
-        } else {
+        } else if (item.isFailed()) {
             labels.add(getString(R.string.action_retry));
             actions.add(ACTION_RETRY);
         }

@@ -59,6 +59,7 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
 
     private static final String PREFS_NAME = "cfc";
     private static final String PREF_MODE = "mode";
+    private static final String PREF_HIGH_RES = "high_res";
 
     private static final int EXPORT_FILE = 11;
     private static final int REQUEST_STORAGE = 12;
@@ -97,6 +98,7 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
     private ReceivedFileAdapter mInboxAdapter;
     private AlertDialog mInboxDialog;
     private AlertDialog mModeDialog;
+    private AlertDialog mPreviewDialog;
     private ReceivedFile mExportItem;
 
     private HandlerThread mPublishThread;
@@ -182,6 +184,15 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
         // the mode the user picked is remembered across launches
         modeVal = prefs().getInt(PREF_MODE, MODE_AUTO);
 
+        // preview size preference has to be in place before the camera initializes
+        mOpenCvCameraView.setPreferHighResolution(prefs().getBoolean(PREF_HIGH_RES, false));
+        mCameraInfo.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showPreviewDialog();
+            }
+        });
+
         mInboxAdapter = new ReceivedFileAdapter(this, mInbox);
 
         // publishing happens off the camera thread, one file at a time
@@ -237,6 +248,8 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
             mInboxDialog.dismiss();
         if (mModeDialog != null)
             mModeDialog.dismiss();
+        if (mPreviewDialog != null)
+            mPreviewDialog.dismiss();
         if (mPublishHandler != null)
             mPublishHandler.removeCallbacksAndMessages(null);
         if (mPublishThread != null)
@@ -759,37 +772,90 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
             if (MODES[i] == modeVal)
                 current = i;
         }
-        final int checked = current;
 
-        // a ListView handed to setView, like the inbox: the dialog's own choice list
-        // (setSingleChoiceItems) rendered empty inside this app's theme
+        mModeDialog = showChoices(R.string.mode_dialog_title, labels, current,
+                new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        setMode(MODES[which]);
+                    }
+                });
+    }
+
+    private void showPreviewDialog() {
+        if (mPreviewDialog != null && mPreviewDialog.isShowing()) {
+            mPreviewDialog.dismiss();
+            return;
+        }
+
+        final String[] labels = {
+                getString(R.string.preview_fast),
+                getString(R.string.preview_sharp),
+        };
+        int current = prefs().getBoolean(PREF_HIGH_RES, false) ? 1 : 0;
+
+        mPreviewDialog = showChoices(R.string.preview_dialog_title, labels, current,
+                new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        setHighResolution(which == 1);
+                    }
+                });
+    }
+
+    /**
+     * A ListView handed to setView, not setSingleChoiceItems: the dialog's own choice list
+     * rendered empty inside this theme. The current entry is marked with "&gt; ".
+     */
+    private AlertDialog showChoices(int titleRes, final String[] labels, int checked,
+                                    DialogInterface.OnClickListener listener) {
+        final String[] items = labels;
+        final int current = checked;
+
         ArrayAdapter<String> adapter = new ArrayAdapter<String>(this,
-                android.R.layout.simple_list_item_1, labels) {
+                android.R.layout.simple_list_item_1, items) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
                 TextView row = (TextView) super.getView(position, convertView, parent);
-                row.setText(position == checked ? "> " + labels[position] : labels[position]);
+                row.setText(position == current ? "> " + items[position] : items[position]);
                 return row;
             }
         };
 
         ListView list = new ListView(this);
         list.setAdapter(adapter);
-        list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                setMode(MODES[position]);
-                if (mModeDialog != null)
-                    mModeDialog.dismiss();
-            }
-        });
 
-        mModeDialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.mode_dialog_title)
+        final AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(titleRes)
                 .setView(list)
                 .setNegativeButton(android.R.string.cancel, null)
                 .create();
-        mModeDialog.show();
+
+        list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                dialog.dismiss();
+                listener.onClick(dialog, position);
+            }
+        });
+
+        dialog.show();
+        return dialog;
+    }
+
+    private void setHighResolution(boolean sharp) {
+        if (sharp == prefs().getBoolean(PREF_HIGH_RES, false))
+            return;
+        prefs().edit().putBoolean(PREF_HIGH_RES, sharp).apply();
+        if (mOpenCvCameraView != null) {
+            mOpenCvCameraView.setPreferHighResolution(sharp);
+            // the frame size is chosen once, when the camera is opened: bounce it
+            mOpenCvCameraView.disableView();
+            mOpenCvCameraView.enableView();
+        }
+        mPreviewLabel = null;
+        toast(getString(R.string.toast_preview,
+                getString(sharp ? R.string.preview_name_sharp : R.string.preview_name_fast)), true);
     }
 
     private void setMode(int mode) {

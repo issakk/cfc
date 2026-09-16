@@ -70,9 +70,23 @@ public class OpencvCameraView extends CameraBridgeViewBase implements PreviewCal
         super(context, attrs);
     }
 
+    /**
+     * false: the smallest frame in the 1080p-class band (1280x960 usually) -- fewer pixels per
+     * frame, more frames per second. true: the largest one that fits (1920x1080 usually) -- more
+     * pixels per code cell, fewer frames. Both are in the band upstream chose; which one decodes
+     * faster depends on the phone, the distance and the mode, so it is a user setting.
+     */
+    protected boolean preferHighResolution = false;
+
+    protected void setPreferHighResolution(boolean value) {
+        preferHighResolution = value;
+    }
+
     protected Size bestCameraFrameSize(List<?> supportedSizes, ListItemAccessor accessor, int surfaceWidth, int surfaceHeight) {
         int calcWidth = 10000000;
         int calcHeight = 10000000;
+        int biggestWidth = 0;
+        int biggestHeight = 0;
 
         // supported sizes are always landscape-oriented, whatever the activity orientation is,
         // so compare against the longest/shortest edge of the surface rather than its width/height.
@@ -96,8 +110,15 @@ public class OpencvCameraView extends CameraBridgeViewBase implements PreviewCal
                     calcWidth = (int) width;
                     calcHeight = (int) height;
                 }
+                if (width > biggestWidth) {
+                    biggestWidth = (int) width;
+                    biggestHeight = (int) height;
+                }
             }
         }
+        if (preferHighResolution && biggestWidth > 0)
+            return new Size(biggestWidth, biggestHeight);
+
         if (calcWidth < 10000000 && calcHeight < 10000000) {
             return new Size(calcWidth, calcHeight);
         }

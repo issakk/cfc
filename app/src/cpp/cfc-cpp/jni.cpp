@@ -101,26 +101,30 @@ namespace {
 			return;
 
 		int minsz = std::min(mat.cols, mat.rows);
-		int fillWidth = minsz >> 7;
-		int outlineWidth = fillWidth + (minsz >> 8) + 1;
+		int fillHeight = std::max(3, minsz >> 6);
+		int trackHeight = fillHeight + std::max(2, minsz >> 8);
 
-		int barLength = (minsz >> 1) + (minsz >> 2);
-		int barOffsetW = (minsz - barLength) >> 3;
-		int barOffsetL = (minsz - barLength) >> 1;
-		int outlineOffset = (outlineWidth - fillWidth) >> 1;
+		// horizontal and along the bottom: the old vertical bars hugged the left edge and read
+		// as a glitch in portrait. 55% of the width keeps it clear of the button bar in the
+		// bottom right corner.
+		int marginX = minsz >> 5;
+		int barLength = (mat.cols * 55) / 100;
+		int barY = mat.rows - (minsz >> 4);
+		int step = trackHeight * 2; // a second file in flight stacks above the first
 
 		cv::Scalar color = cv::Scalar(255,255,255);
 		cv::Scalar outline = cv::Scalar(0,0,0);
 
-		int px = barOffsetW;
-		int py = mat.rows - barOffsetL;
 		for (double p : progress)
 		{
-			int fillLength = (barLength * p);
-			cv::line(mat, cv::Point(px - outlineOffset, py), cv::Point(px - outlineOffset, py - barLength), outline, outlineWidth);
-			cv::line(mat, cv::Point(px, py), cv::Point(px, py - fillLength), color, fillWidth);
+			int fillLength = int(barLength * p);
+			cv::Point left(marginX, barY);
+			cv::Point right(marginX + barLength, barY);
+			cv::line(mat, left, right, outline, trackHeight);
+			if (fillLength > 0)
+				cv::line(mat, left, cv::Point(marginX + fillLength, barY), color, fillHeight);
 
-			px += outlineWidth + outlineWidth;
+			barY -= step;
 		}
 	}
 

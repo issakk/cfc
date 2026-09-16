@@ -21,6 +21,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
@@ -81,6 +82,9 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
     private static final int ACTION_EXPORT = 4;
 
     private static final long STATUS_UPDATE_INTERVAL_MS = 200;
+    private static final long CAMERA_RESTART_DELAY_MS = 400;
+    private static final long NO_FRAMES_TIMEOUT_MS = 3000;
+    private static final int MAX_RESTART_ATTEMPTS = 1;
     private static final long TOAST_THROTTLE_MS = 1500;
 
     private GestureDetectorCompat mDetector;
@@ -116,6 +120,12 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
     private double[] mLastCounters = null;
     private int mFramesSinceTick = 0;
     private long mLastTickAt = 0;
+
+    private final Handler mMainHandler = new Handler(Looper.getMainLooper());
+    /** written by the camera thread, read by the restart watchdog */
+    private volatile int mFramesSinceRestart = 0;
+    private volatile boolean mRebaselineTicks = false;
+    private int mRestartAttempts = 0;
     private int mLastTransferStatus = 0;
     private long mLastToastAt = 0;
     private boolean mNativeReady = false;
@@ -248,6 +258,7 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
 
     @Override
     public void onDestroy() {
+        mMainHandler.removeCallbacksAndMessages(null);
         if (mInboxDialog != null)
             mInboxDialog.dismiss();
         if (mModeDialog != null)
@@ -276,6 +287,7 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
         // the frame size the decoder actually gets (after the camera rotation is applied), so
         // there is no guessing about which preview size this device settled on
         final String label = getString(R.string.camera_info_fmt, width, height);
+        Log.i(TAG, "camera started at " + width + "x" + height);
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -286,6 +298,14 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
     }
 
     private void countFrameForStats() {
+        ++mFramesSinceRestart;
+        if (mRebaselineTicks) {
+            // the first frame after a restart: start the second over, so fps is not measured
+            // across the gap where the camera was closed
+            mRebaselineTicks = false;
+            mFramesSinceTick = 0;
+            mLastTickAt = 0;
+        }
         ++mFramesSinceTick;
         long now = System.currentTimeMillis();
         if (mLastTickAt == 0) {
@@ -825,6 +845,68 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
                 });
     }
 
+    /**
+     * The frame size is only read while the camera is being opened, so a change means closing and
+     * re-opening it. Doing that in one go from a click blocks the UI thread for the whole restart
+     * and, when the re-open fails, leaves the view enabled with no camera -- no frames, nothing
+     * decoded, and the info line frozen. So: close, re-open a moment later, and check that frames
+     * actually arrive.
+     */
+    private void restartCamera(final String choice) {
+        if (mOpenCvCameraView == null)
+            return;
+
+        mFramesSinceRestart = 0;
+        mRebaselineTicks = true;
+        mStatsSuffix = " · " + getString(R.string.preview_restarting);
+        updateCameraInfoText();
+        mOpenCvCameraView.disableView();
+
+        mMainHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (mOpenCvCameraView != null)
+                    mOpenCvCameraView.enableView();
+
+                mMainHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        checkCameraCameBack(choice);
+                    }
+                }, NO_FRAMES_TIMEOUT_MS);
+            }
+        }, CAMERA_RESTART_DELAY_MS);
+    }
+
+    /** no frames after a restart means the size did not work here (or the surface raced us) */
+    private void checkCameraCameBack(String choice) {
+        if (mFramesSinceRestart > 0)
+            return;
+
+        if (mRestartAttempts < MAX_RESTART_ATTEMPTS) {
+            ++mRestartAttempts;
+            Log.w(TAG, "no frames " + NO_FRAMES_TIMEOUT_MS + "ms after switching preview to "
+                    + choice + "; retrying the restart");
+            restartCamera(choice);
+            return;
+        }
+
+        mRestartAttempts = 0;
+        if (PREVIEW_AUTO_CHOICE.equals(choice)) {
+            // nothing left to fall back to: say so instead of showing stale numbers
+            mStatsSuffix = " · " + getString(R.string.preview_no_frames);
+            toast(getString(R.string.toast_preview_no_frames), true);
+            updateCameraInfoText();
+            return;
+        }
+
+        Log.w(TAG, "preview size " + choice + " gave no frames; back to auto");
+        prefs().edit().putString(PREF_PREVIEW, PREVIEW_AUTO_CHOICE).apply();
+        applyPreviewChoice(PREVIEW_AUTO_CHOICE);
+        toast(getString(R.string.toast_preview_failed, choice), true);
+        restartCamera(PREVIEW_AUTO_CHOICE);
+    }
+
     /** "auto" | "sharp" | "WxH" -- applied before the camera opens, so it takes effect there */
     private void applyPreviewChoice(String choice) {
         if (mOpenCvCameraView == null)
@@ -900,13 +982,10 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
             return;
         prefs().edit().putString(PREF_PREVIEW, choice).apply();
         applyPreviewChoice(choice);
-        if (mOpenCvCameraView != null) {
-            // the frame size is chosen once, when the camera is opened: bounce it
-            mOpenCvCameraView.disableView();
-            mOpenCvCameraView.enableView();
-        }
-        mPreviewLabel = null;
+        mLastCounters = null;   // rates must not be computed across the restart
+        mRestartAttempts = 0;
         toast(getString(R.string.toast_preview, choice), true);
+        restartCamera(choice);
     }
 
     private void setMode(int mode) {

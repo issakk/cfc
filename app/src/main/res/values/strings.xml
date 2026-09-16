@@ -25,6 +25,10 @@
     <string name="preview_sharp">Sharp - largest 1080p-class frame (more pixels per cell)</string>
     <string name="preview_size_fmt">%1$dx%2$d (%3$.1f MP)</string>
     <string name="toast_preview">Preview: %1$s</string>
+    <string name="preview_restarting">restarting...</string>
+    <string name="preview_no_frames">no frames</string>
+    <string name="toast_preview_failed">No frames at %1$s - back to auto</string>
+    <string name="toast_preview_no_frames">Camera gave no frames - try another preview size</string>
     <string name="stats_fmt">%1$d fps &#183; %2$d kB/s &#183; scan %3$d%% &#183; chunk %4$d%% &#183; drop %5$d%%</string>
 
     <!-- mode selection -->

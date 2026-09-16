@@ -1,5 +1,8 @@
 package com.github.issakk.cfc;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import android.content.Context;
@@ -70,16 +73,49 @@ public class OpencvCameraView extends CameraBridgeViewBase implements PreviewCal
         super(context, attrs);
     }
 
-    /**
-     * false: the smallest frame in the 1080p-class band (1280x960 usually) -- fewer pixels per
-     * frame, more frames per second. true: the largest one that fits (1920x1080 usually) -- more
-     * pixels per code cell, fewer frames. Both are in the band upstream chose; which one decodes
-     * faster depends on the phone, the distance and the mode, so it is a user setting.
-     */
-    protected boolean preferHighResolution = false;
+    /** smallest frame in the 1080p-class band: fewest pixels per frame, most frames per second */
+    protected static final int PREVIEW_AUTO = 0;
+    /** largest frame in that band: more pixels per code cell, fewer frames */
+    protected static final int PREVIEW_SHARP = 1;
+    /** one exact size the user picked out of the device's own list */
+    protected static final int PREVIEW_EXACT = 2;
 
-    protected void setPreferHighResolution(boolean value) {
-        preferHighResolution = value;
+    protected int previewMode = PREVIEW_AUTO;
+    protected int previewWidth = 0;
+    protected int previewHeight = 0;
+
+    private final List<int[]> recordedSizes = new ArrayList<int[]>();
+
+    protected void setPreviewMode(int mode, int width, int height) {
+        previewMode = mode;
+        previewWidth = width;
+        previewHeight = height;
+    }
+
+    /** the preview sizes the camera reported, biggest first -- for the settings picker */
+    protected List<int[]> getRecordedPreviewSizes() {
+        List<int[]> sorted;
+        // the camera thread records these while opening the camera, the UI thread reads them
+        synchronized (recordedSizes) {
+            sorted = new ArrayList<int[]>(recordedSizes);
+        }
+        Collections.sort(sorted, new Comparator<int[]>() {
+            @Override
+            public int compare(int[] a, int[] b) {
+                long areaA = (long) a[0] * a[1];
+                long areaB = (long) b[0] * b[1];
+                return Long.compare(areaB, areaA);
+            }
+        });
+        return sorted;
+    }
+
+    private void recordPreviewSizes(List<android.hardware.Camera.Size> sizes) {
+        synchronized (recordedSizes) {
+            recordedSizes.clear();
+            for (android.hardware.Camera.Size size : sizes)
+                recordedSizes.add(new int[] { size.width, size.height });
+        }
     }
 
     protected Size bestCameraFrameSize(List<?> supportedSizes, ListItemAccessor accessor, int surfaceWidth, int surfaceHeight) {
@@ -97,6 +133,16 @@ public class OpencvCameraView extends CameraBridgeViewBase implements PreviewCal
 
         int maxAllowedWidth = (mMaxWidth != MAX_UNSPECIFIED && mMaxWidth < surfaceLongest)? mMaxWidth : surfaceLongest;
         int maxAllowedHeight = (mMaxHeight != MAX_UNSPECIFIED && mMaxHeight < surfaceShortest)? mMaxHeight : surfaceShortest;
+
+        // an explicitly chosen size wins, inside or outside the band, as long as the device still
+        // offers it -- anything above 1080p costs frames, which is exactly what is being tried
+        if (previewMode == PREVIEW_EXACT && previewWidth > 0 && previewHeight > 0) {
+            for (Object size : supportedSizes) {
+                if (accessor.getWidth(size) == previewWidth && accessor.getHeight(size) == previewHeight)
+                    return new Size(previewWidth, previewHeight);
+            }
+            // no longer offered: fall through to the band logic below
+        }
 
         for (Object size : supportedSizes) {
             int width = accessor.getWidth(size);
@@ -116,7 +162,7 @@ public class OpencvCameraView extends CameraBridgeViewBase implements PreviewCal
                 }
             }
         }
-        if (preferHighResolution && biggestWidth > 0)
+        if (previewMode == PREVIEW_SHARP && biggestWidth > 0)
             return new Size(biggestWidth, biggestHeight);
 
         if (calcWidth < 10000000 && calcHeight < 10000000) {
@@ -201,6 +247,8 @@ public class OpencvCameraView extends CameraBridgeViewBase implements PreviewCal
                 List<android.hardware.Camera.Size> sizes = params.getSupportedPreviewSizes();
 
                 if (sizes != null) {
+                    recordPreviewSizes(sizes);
+
                     /* Select the size that fits surface considering maximum size allowed */
                     Size frameSize = bestCameraFrameSize(sizes, new JavaCameraSizeAccessor(), width, height);
 

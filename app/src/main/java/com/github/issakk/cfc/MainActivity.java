@@ -59,7 +59,9 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
 
     private static final String PREFS_NAME = "cfc";
     private static final String PREF_MODE = "mode";
-    private static final String PREF_HIGH_RES = "high_res";
+    private static final String PREF_PREVIEW = "preview";
+    private static final String PREVIEW_AUTO_CHOICE = "auto";
+    private static final String PREVIEW_SHARP_CHOICE = "sharp";
 
     private static final int EXPORT_FILE = 11;
     private static final int REQUEST_STORAGE = 12;
@@ -187,7 +189,7 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
         modeVal = prefs().getInt(PREF_MODE, MODE_AUTO);
 
         // preview size preference has to be in place before the camera initializes
-        mOpenCvCameraView.setPreferHighResolution(prefs().getBoolean(PREF_HIGH_RES, false));
+        applyPreviewChoice(prefs().getString(PREF_PREVIEW, PREVIEW_AUTO_CHOICE));
         mCameraInfo.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -790,19 +792,67 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
             return;
         }
 
-        final String[] labels = {
-                getString(R.string.preview_fast),
-                getString(R.string.preview_sharp),
-        };
-        int current = prefs().getBoolean(PREF_HIGH_RES, false) ? 1 : 0;
+        final String current = prefs().getString(PREF_PREVIEW, PREVIEW_AUTO_CHOICE);
+        final List<String> labels = new ArrayList<String>();
+        final List<String> values = new ArrayList<String>();
 
-        mPreviewDialog = showChoices(R.string.preview_dialog_title, labels, current,
-                new DialogInterface.OnClickListener() {
+        labels.add(getString(R.string.preview_auto));
+        values.add(PREVIEW_AUTO_CHOICE);
+        labels.add(getString(R.string.preview_sharp));
+        values.add(PREVIEW_SHARP_CHOICE);
+        int checked = PREVIEW_SHARP_CHOICE.equals(current) ? 1 : 0;
+
+        // everything the camera reported, biggest first, so the largest size is one tap away
+        if (mOpenCvCameraView != null) {
+            for (int[] size : mOpenCvCameraView.getRecordedPreviewSizes()) {
+                if (size[0] < 720 && size[1] < 720)
+                    continue;
+                String value = size[0] + "x" + size[1];
+                if (value.equals(current))
+                    checked = labels.size();
+                labels.add(getString(R.string.preview_size_fmt, size[0], size[1],
+                        (size[0] * (double) size[1]) / 1000000.0));
+                values.add(value);
+            }
+        }
+
+        mPreviewDialog = showChoices(R.string.preview_dialog_title,
+                labels.toArray(new String[0]), checked, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        setHighResolution(which == 1);
+                        setPreviewChoice(values.get(which));
                     }
                 });
+    }
+
+    /** "auto" | "sharp" | "WxH" -- applied before the camera opens, so it takes effect there */
+    private void applyPreviewChoice(String choice) {
+        if (mOpenCvCameraView == null)
+            return;
+        if (PREVIEW_SHARP_CHOICE.equals(choice)) {
+            mOpenCvCameraView.setPreviewMode(OpencvCameraView.PREVIEW_SHARP, 0, 0);
+            return;
+        }
+        int[] size = parsePreviewSize(choice);
+        if (size != null)
+            mOpenCvCameraView.setPreviewMode(OpencvCameraView.PREVIEW_EXACT, size[0], size[1]);
+        else
+            mOpenCvCameraView.setPreviewMode(OpencvCameraView.PREVIEW_AUTO, 0, 0);
+    }
+
+    private static int[] parsePreviewSize(String choice) {
+        int separator = (choice == null) ? -1 : choice.indexOf('x');
+        if (separator <= 0 || separator + 1 >= choice.length())
+            return null;
+        try {
+            int width = Integer.parseInt(choice.substring(0, separator));
+            int height = Integer.parseInt(choice.substring(separator + 1));
+            if (width > 0 && height > 0)
+                return new int[] { width, height };
+        } catch (NumberFormatException ignored) {
+            // not a size we produced: treat as auto
+        }
+        return null;
     }
 
     /**
@@ -845,19 +895,18 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
         return dialog;
     }
 
-    private void setHighResolution(boolean sharp) {
-        if (sharp == prefs().getBoolean(PREF_HIGH_RES, false))
+    private void setPreviewChoice(String choice) {
+        if (choice.equals(prefs().getString(PREF_PREVIEW, PREVIEW_AUTO_CHOICE)))
             return;
-        prefs().edit().putBoolean(PREF_HIGH_RES, sharp).apply();
+        prefs().edit().putString(PREF_PREVIEW, choice).apply();
+        applyPreviewChoice(choice);
         if (mOpenCvCameraView != null) {
-            mOpenCvCameraView.setPreferHighResolution(sharp);
             // the frame size is chosen once, when the camera is opened: bounce it
             mOpenCvCameraView.disableView();
             mOpenCvCameraView.enableView();
         }
         mPreviewLabel = null;
-        toast(getString(R.string.toast_preview,
-                getString(sharp ? R.string.preview_name_sharp : R.string.preview_name_fast)), true);
+        toast(getString(R.string.toast_preview, choice), true);
     }
 
     private void setMode(int mode) {

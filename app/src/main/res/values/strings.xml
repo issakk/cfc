@@ -21,11 +21,10 @@
     <string name="status_done">%1$s | transfer complete</string>
     <string name="camera_info_fmt">preview %1$dx%2$d</string>
     <string name="preview_dialog_title">Camera preview size</string>
-    <string name="preview_fast">Fast - smallest 1080p-class frame (more fps)</string>
-    <string name="preview_sharp">Sharp - largest that fits, up to 1080p (more pixels per cell)</string>
+    <string name="preview_auto">Auto - smallest 1080p-class frame (most fps)</string>
+    <string name="preview_sharp">Sharp - largest 1080p-class frame (more pixels per cell)</string>
+    <string name="preview_size_fmt">%1$dx%2$d (%3$.1f MP)</string>
     <string name="toast_preview">Preview: %1$s</string>
-    <string name="preview_name_fast">fast</string>
-    <string name="preview_name_sharp">sharp</string>
     <string name="stats_fmt">%1$d fps &#183; %2$d kB/s &#183; scan %3$d%% &#183; chunk %4$d%% &#183; drop %5$d%%</string>
 
     <!-- mode selection -->

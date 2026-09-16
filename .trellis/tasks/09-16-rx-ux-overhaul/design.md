@@ -36,6 +36,8 @@ private native String[] processImageJNI(long matAddr, String dataPath, int modeV
 private native double[] getStatusJNI();
 // 自动识别到的模式，0 表示尚未识别
 private native int detectedModeJNI();
+// {帧数, 已处理, 出数据, 接近完成, 已解码字节}（累计值，调用方做差分算速率）
+private native double[] getCountersJNI();
 private native void shutdownJNI();
 ```
 

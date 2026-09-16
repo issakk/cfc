@@ -20,6 +20,7 @@
     <string name="status_receiving">%1$s | receiving %2$d%%</string>
     <string name="status_done">%1$s | transfer complete</string>
     <string name="camera_info_fmt">preview %1$dx%2$d</string>
+    <string name="stats_fmt">%1$d fps &#183; %2$d kB/s &#183; scan %3$d%% &#183; chunk %4$d%% &#183; drop %5$d%%</string>
 
     <!-- mode selection -->
     <string name="mode_dialog_title">Decoder mode - pick what the sender shows</string>

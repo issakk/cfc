@@ -275,6 +275,30 @@ Java_com_github_issakk_cfc_MainActivity_getStatusJNI(JNIEnv *env, jobject instan
 	return result;
 }
 
+jdoubleArray JNICALL
+Java_com_github_issakk_cfc_MainActivity_getCountersJNI(JNIEnv *env, jobject instance) {
+	// cumulative since the process started; callers diff consecutive samples for rates
+	std::lock_guard<std::mutex> lock(_mutex);
+	std::shared_ptr<MultiThreadedDecoder> proc = _proc;
+
+	double scanned = 0, decoded = 0, perfect = 0, bytes = 0;
+	if (proc)
+	{
+		scanned = proc->scanned;
+		decoded = proc->decoded;
+		perfect = proc->perfect;
+		bytes = proc->bytes;
+	}
+
+	// {frames handed in by the app, frames processed, frames that produced data,
+	//  frames that nearly completed a file, bytes decoded}
+	jdouble counters[5] = { (double)_calls, scanned, decoded, perfect, bytes };
+	jdoubleArray result = env->NewDoubleArray(5);
+	if (result)
+		env->SetDoubleArrayRegion(result, 0, 5, counters);
+	return result;
+}
+
 jint JNICALL
 Java_com_github_issakk_cfc_MainActivity_detectedModeJNI(JNIEnv *env, jobject instance) {
 	std::lock_guard<std::mutex> lock(_mutex);

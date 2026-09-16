@@ -105,6 +105,11 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
     private ToneGenerator mTone;
 
     private long mLastStatusPost = 0;
+    private String mPreviewLabel = null;
+    private String mStatsSuffix = "";
+    private double[] mLastCounters = null;
+    private int mFramesSinceTick = 0;
+    private long mLastTickAt = 0;
     private int mLastTransferStatus = 0;
     private long mLastToastAt = 0;
     private boolean mNativeReady = false;
@@ -253,15 +258,76 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
     public void onCameraViewStarted(int width, int height) {
         // the frame size the decoder actually gets (after the camera rotation is applied), so
         // there is no guessing about which preview size this device settled on
-        final int frameWidth = width;
-        final int frameHeight = height;
+        final String label = getString(R.string.camera_info_fmt, width, height);
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (mCameraInfo != null)
-                    mCameraInfo.setText(getString(R.string.camera_info_fmt, frameWidth, frameHeight));
+                mPreviewLabel = label;
+                updateCameraInfoText();
             }
         });
+    }
+
+    private void countFrameForStats() {
+        ++mFramesSinceTick;
+        long now = System.currentTimeMillis();
+        if (mLastTickAt == 0) {
+            mLastTickAt = now;
+            return;
+        }
+        if (now - mLastTickAt < 1000)
+            return;
+
+        final int fps = (int) Math.round(mFramesSinceTick * 1000.0 / (now - mLastTickAt));
+        mFramesSinceTick = 0;
+        mLastTickAt = now;
+        final double[] counters = getCountersJNI();
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                applyCounters(fps, counters);
+            }
+        });
+    }
+
+    /** main thread: turn cumulative counters into the rates shown under the status line */
+    private void applyCounters(int fps, double[] counters) {
+        if (counters == null || counters.length < 5)
+            return;
+
+        if (mLastCounters != null) {
+            double frames = counters[0] - mLastCounters[0];
+            double scanned = counters[1] - mLastCounters[1];
+            double decoded = counters[2] - mLastCounters[2];
+            double perfect = counters[3] - mLastCounters[3];
+            double bytes = counters[4] - mLastCounters[4];
+
+            double seconds = 1.0;
+            if (frames > 0 && fps > 0)
+                seconds = frames / fps;
+
+            mStatsSuffix = " · " + getString(R.string.stats_fmt,
+                    fps,
+                    (int) (bytes / 1024.0 / seconds),
+                    percentOf(decoded, scanned),
+                    percentOf(perfect, decoded),
+                    percentOf(frames - scanned, frames));
+        }
+        mLastCounters = counters;
+        updateCameraInfoText();
+    }
+
+    private static int percentOf(double part, double whole) {
+        if (whole <= 0)
+            return 0;
+        int percent = (int) Math.round(part * 100.0 / whole);
+        return percent < 0 ? 0 : Math.min(percent, 100);
+    }
+
+    private void updateCameraInfoText() {
+        if (mCameraInfo == null || mPreviewLabel == null)
+            return;
+        mCameraInfo.setText(mPreviewLabel + mStatsSuffix);
     }
 
     @Override
@@ -320,6 +386,8 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
             });
         }
 
+        countFrameForStats();
+
         // return processed frame for live preview
         return mat;
     }
@@ -331,6 +399,9 @@ public class MainActivity extends CameraActivity implements CvCameraViewListener
     private native double[] getStatusJNI();
 
     private native int detectedModeJNI();
+
+    /** {frames in, frames processed, frames with data, frames nearly complete, bytes decoded} */
+    private native double[] getCountersJNI();
 
     private native void shutdownJNI();
 
